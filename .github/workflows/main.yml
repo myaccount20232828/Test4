@@ -1,0 +1,25 @@
+name: Build 
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  Build:
+    runs-on: macos-latest
+    steps:
+     - name: Build App
+       run: |
+            Scheme="booky"
+            XCProject="booky.xcodeproj"
+            xcodebuild -jobs $(sysctl -n hw.ncpu) -project "$XCProject" -scheme "$Scheme" -configuration Release -arch arm64 -sdk iphoneos -derivedDataPath "$TMPDIR/App" CODE_SIGNING_ALLOWED=NO DSTROOT=$AppTMP/install ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=NO OTHER_CFLAGS="-fobjc-arc $(pkg-config --cflags libcrypto) -Iexternal/include" OTHER_LDFLAGS="-Lexternal/lib -lcrypto -lchoma"
+            mkdir Payload
+            mv "$(echo $TMPDIR/App/Build/Products/Release-iphoneos/*.app)" Payload
+            ldid -Sentitlements.plist "$(echo Payload/*.app)"
+            zip -r9 "$Scheme.ipa" Payload
+            rm -rf Payload && rm -rf "$TMPDIR/App"
+     - name: Git Push
+       run: |
+            git config user.name github-actions
+            git config user.email github-actions@github.com
+            git add fastPathSign.ipa
+            git commit -m "Built fastPathSign"
+            git push
